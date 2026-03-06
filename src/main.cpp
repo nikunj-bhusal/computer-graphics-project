@@ -27,20 +27,18 @@ class AnimatedTreeDrawer {
     std::chrono::steady_clock::time_point lastTime;
     double sunAngle;
 
-    // Animation state variables
     double treeGrowthScale;
     double flowerScale;
     bool showFlowers;
     int flowerPosX, flowerPosY;
     std::vector<Point> flowerPositions;
     std::vector<Seed> fallingSeeds;
-    int animationPhase;  // 0: seed germination, 1: tree growth, 2: flowering, 3: seed fall, 4: reset
+    int animationPhase;
     int phaseTimer;
     int rightmostBranchX, rightmostBranchY;
     double zoomScale;
     double cameraOffsetX, cameraOffsetY;
 
-    // Colors
     const double PI = 3.141592654;
     const int BROWN = COLOR(139, 69, 19);
     const int DARK_BROWN = COLOR(101, 67, 33);
@@ -327,9 +325,9 @@ class AnimatedTreeDrawer {
 
         for (int i = 0; i < numPoints; i++) {
             double t = i * 2 * PI / numPoints;
-            // --- CRITICAL FIX: Shift localX by +size so the base of the leaf is at (x,y) ---
+
             double localX = size * cos(t) + size;
-            double localY = size * 0.35 * sin(t);  // Tapered oval
+            double localY = size * 0.35 * sin(t);
 
             int rotatedX = static_cast<int>(localX * cos(angle) - localY * sin(angle));
             int rotatedY = static_cast<int>(localX * sin(angle) + localY * cos(angle));
@@ -345,21 +343,18 @@ class AnimatedTreeDrawer {
         if (progress <= 0) return;
 
         int usedColor = (stemColor == -1) ? LIGHT_GREEN : stemColor;
-        // Incorporate zoomScale to keep dimensions consistent with the tree
+
         int stemHeight = static_cast<int>(60 * progress * zoomScale);
 
         setcolor(usedColor);
         setlinestyle(SOLID_LINE, 0, std::max(2, static_cast<int>(progress * 4 * zoomScale)));
         line(x, y, x, y - stemHeight);
 
-        // Add the two leaves at the TIP once the stem starts growing
         if (progress > 0.1) {
             int tipX = x;
             int tipY = y - stemHeight;
             double leafScale = progress * zoomScale;
 
-            // Separation: 90 degrees total
-            // -135deg (Left) and -45deg (Right) from horizontal (standard polar)
             drawLeafShape(tipX, tipY, -3 * PI / 4.0, leafScale, usedColor);
             drawLeafShape(tipX, tipY, -1 * PI / 4.0, leafScale, usedColor);
         }
@@ -573,7 +568,6 @@ class AnimatedTreeDrawer {
     void render() {
         setactivepage(1 - getactivepage());
 
-        // 1. ENVIRONMENT
         int r = 100 - static_cast<int>(50 * -sin(sunAngle));
         int g = 170 - static_cast<int>(100 * -sin(sunAngle));
         int b = 200 - static_cast<int>(80 * -sin(sunAngle));
@@ -586,18 +580,15 @@ class AnimatedTreeDrawer {
         drawSun();
         drawClouds();
 
-        // 2. COORDINATE TRANSFORMATIONS
         int visualGroundY = static_cast<int>((groundLevel + cameraOffsetY) * zoomScale);
         int anchorX = static_cast<int>((seedX + cameraOffsetX) * zoomScale);
         int anchorY = static_cast<int>((seedY + cameraOffsetY) * zoomScale);
 
-        // 3. SOIL
         int tempGround = groundLevel;
         groundLevel = visualGroundY;
         drawSoil();
         groundLevel = tempGround;
 
-        // 4. CHECK FOR NEW GENERATION
         bool newSeedHasLanded = false;
         if (!fallingSeeds.empty()) {
             for (const auto& s : fallingSeeds) {
@@ -608,16 +599,13 @@ class AnimatedTreeDrawer {
             }
         }
 
-        // 5. FALLING SEEDS (behind tree)
         for (const auto& s : fallingSeeds) {
             int sx = static_cast<int>((s.x + cameraOffsetX) * zoomScale);
             int sy = static_cast<int>((s.y + cameraOffsetY) * zoomScale);
             drawSeed(sx, sy, s.angle, 1.2 * zoomScale);
         }
 
-        // 6. THE PARENT TREE & ROOT SYSTEM
         if (!newSeedHasLanded) {
-            // --- ROOTS & CONNECTOR ---
             if (animationPhase >= 1 && animationPhase <= 4) {
                 setcolor(COLOR(140, 100, 60));
                 int connectionWidth = std::max(1, static_cast<int>(5 * zoomScale * treeGrowthScale));
@@ -630,40 +618,22 @@ class AnimatedTreeDrawer {
                 drawRoot(anchorX, anchorY, 80.0 * zoomScale, PI / 2.0, 4, treeGrowthScale, visualGroundY);
             }
 
-            // ---------------------------------------------------------------
-            // UNIFIED GROWTH PROGRESS
-            // Everything below is driven by treeGrowthScale (0->1 value).
-            //
-            // Phase 1: treeGrowthScale climbs 0.00 -> 1.00 over time
-            // This controls the progressive reveal of the tree structure.
-            // ---------------------------------------------------------------
-
-            // --- SPROUT / STEM: emerges from seed after a short pause ---
-            // Phase 0: seed sits still for 15 frames, then sprout slowly pushes out
-            // Phase 1: stem continues from 40px -> 60px, green -> brown
-            // Phase 2+: stays at full height, fully brown, until trunk covers it
-
-            // --- DIMENSION CONSTANTS ---
             int seedTop = anchorY - static_cast<int>(8 * zoomScale);
             int aboveGroundHeight = static_cast<int>(15 * zoomScale);
             int finalSproutTipY = visualGroundY - aboveGroundHeight;
             int totalSproutDist = seedTop - finalSproutTipY;
 
             if (animationPhase == 0) {
-                // PHASE 0: Sprout grows from seed to its final "seedling" height
                 if (phaseTimer > 15) {
                     double sproutProgress = std::min(1.0, (phaseTimer - 15) / 25.0);
 
-                    // Sine-out easing: Starts fast, slows down to a soft stop
                     double eased = sin(sproutProgress * PI / 2.0);
                     int currentTipY = seedTop - static_cast<int>(eased * totalSproutDist);
 
-                    // 1. Draw Sprout Stem (Thickness 3)
                     setcolor(LIGHT_GREEN);
                     setlinestyle(SOLID_LINE, 0, 3);
                     line(anchorX, seedTop, anchorX, currentTipY);
 
-                    // 2. Grow Leaves (Only once above ground)
                     double groundThreshold = (double)(seedTop - visualGroundY) / totalSproutDist;
                     if (eased > groundThreshold) {
                         double leafGrowth = (eased - groundThreshold) / (1.0 - groundThreshold);
@@ -674,12 +644,8 @@ class AnimatedTreeDrawer {
                     }
                 }
             } else if (animationPhase >= 1) {
-                // PHASE 1+: Tree Development
-                // Keep the seedling stem visible, tree grows from its tip
                 double growthProgress = treeGrowthScale;
 
-                // 1. Draw the seedling stem with color transition from green to brown
-                // Only draw if we're not in the zoom-out phase OR if tree hasn't fully grown
                 bool drawSeedling = (animationPhase < 4) || (animationPhase == 4 && growthProgress > 0.3);
 
                 if (drawSeedling) {
@@ -692,26 +658,20 @@ class AnimatedTreeDrawer {
                     line(anchorX, seedTop, anchorX, finalSproutTipY);
                 }
 
-                // 2. Draw the Growing Tree from the seedling tip (not ground!)
-                // growthProgress controls how much of the tree structure is visible
                 drawBranch(anchorX, finalSproutTipY, 150 * zoomScale, PI / 2.0, 5, 1.0, growthProgress);
 
-                // 3. Calculate where the trunk tip currently is (from seedling tip)
                 double branchProgress = std::max(0.0, (growthProgress * 10.0) - 3.0);
                 branchProgress = std::min(1.0, branchProgress);
 
                 int trunkExtension = static_cast<int>(150 * zoomScale * 1.0 * branchProgress);
                 int leafPositionY = finalSproutTipY - trunkExtension;
 
-                // 4. Draw seedling leaves at the trunk tip - they rise with the tree
-                // Only draw if seedling is visible
                 if (drawSeedling) {
                     drawLeafShape(anchorX, leafPositionY, -3 * PI / 4.0, 1.0 * zoomScale, LIGHT_GREEN);
                     drawLeafShape(anchorX, leafPositionY, -1 * PI / 4.0, 1.0 * zoomScale, LIGHT_GREEN);
                 }
             }
 
-            // --- THE VANISHING INITIAL SEED ---
             if (animationPhase <= 2 && anchorY < screenHeight && anchorY > -100) {
                 double morphFactor = std::max(0.0, 1.0 - (treeGrowthScale * 5.0));
                 if (morphFactor > 0.01) {
