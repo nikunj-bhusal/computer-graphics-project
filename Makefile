@@ -1,7 +1,10 @@
 CXX = C:/mingwc/bin/g++.exe
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -fdiagnostics-color=always -g
 TARGET = run.exe
-SOURCES = src/main.cpp
+SRCDIR = src
+INCDIR = include
+SOURCES = $(SRCDIR)/main.cpp $(SRCDIR)/animator.cpp
+INCLUDES = -I$(INCDIR)
 LINK = -lbgi -lgdi32 -lcomdlg32 -luuid -loleaut32 -lole32
 
 # Default target
@@ -9,7 +12,7 @@ all: $(TARGET)
 
 $(TARGET): $(SOURCES)
 	@echo Compiling with graphics.h support...
-	$(CXX) $(CXXFLAGS) $(SOURCES) -o $(TARGET) $(LINK)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(SOURCES) -o $(TARGET) $(LINK)
 	@echo Compilation complete. Output: $(TARGET)
 
 # Clean target
